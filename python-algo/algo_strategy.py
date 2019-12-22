@@ -81,20 +81,26 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.build_defences(game_state)
         # repair defenses
         self.repair_defense(game_state)
-        if game_state.get_resource(BITS, 0) > 15+min(round/10, 5):
+
+        # send out scramblers if they're sending ton of EMPs
+        if self.scored_type[1] > 4:
+            game_state.attempt_spawn(SCRAMBLER, [18, 4], 1)
+
+        if game_state.get_resource(BITS, 0) > 13+min(game_state.turn_number/10, 5):
             # check if they have lots of destructors
             # if they do, send EMPs
             # if not, send pings
             num_dest = 0
-            threat_loc = [[27, 14], [26, 14], [25, 14], [24, 14], [23, 14], [26, 15], [25, 15], [24, 15], [25, 16]]
+            threat_loc = [[27, 14], [26, 14], [25, 14], [24, 14],
+                          [23, 14], [26, 15], [25, 15], [24, 15], [25, 16]]
             for p in threat_loc:
                 if game_state.game_map[p]:
                     if game_state.game_map[p][0].unit_type == DESTRUCTOR:
                         num_dest += 1
-                    else
+                    else:
                         num_dest += 0.5
             if num_dest > 3.5:
-                game_state.attempt_spwan(EMP, [21, 7], 6)
+                game_state.attempt_spawn(EMP, [21, 7], 6)
             else:
                 game_state.attempt_spawn(PING, [5, 8], 3)
                 game_state.attempt_spawn(PING, [4, 9], 100)
@@ -109,42 +115,67 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         # Place destructors that attack enemy units
         destructor_locations = [[3, 12], [24, 12], [13, 9]]
+
+        corner_left = [[0, 13], [1, 13], [2, 13], [3, 13]]
+        corner_right = [[24, 13], [25, 13], [27, 13]]
+        fort_left = False
+        fort_right = False
         # attempt_spawn will try to spawn units if we have resources, and will check if a blocking unit is already there
         game_state.attempt_spawn(DESTRUCTOR, destructor_locations)
         if (game_state.turn_number <= 10):
             # Place filters in front of destructors to soak up damage for them
-            filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11], [23, 12],
-                                [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [
-                                5, 10], [22, 10], [6, 9], [21, 9], [7, 10], [20, 10],
+            center_locations = [[4, 12], [4, 11], [23, 12], [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [22, 10], [6, 9], [21, 9], [7, 10], [20, 10],
                                 [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
+            filter_locations = center_locations + corner_left + corner_right
             game_state.attempt_spawn(FILTER, filter_locations)
         else:
-            filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11],
-                                [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [6, 9], [7, 10], [20, 10], [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
+            # check for left or right breach
+            left = 0
+            right = 0
+            if self.scored_type[0] > 6:
+                for p in self.scored_on_locations:
+                    if p in game_state.game_map.get_edge_locations(game_state.game_map.BOTTOM_LEFT):
+                        left += 1
+                    else:
+                        right += 1
+            if left > 6:
+                fort_left = True
+            if right > 6:
+                fort_right = True
+            filter_locations = [[4, 12], [4, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [6, 9], [7, 10], [20, 10], [8, 10], [19, 10], [9, 10], [18, 10],
+                                [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
+            if not fort_right:
+                filter_locations = filter_locations + corner_right
+            if not fort_left:
+                filter_locations = filter_locations + corner_left
             game_state.attempt_spawn(FILTER, filter_locations)
         destructor_locations = [[8, 9], [19, 9], [
             2, 12], [1, 12], [2, 11], [4, 10], [3, 11]]
         game_state.attempt_spawn(DESTRUCTOR, destructor_locations)
+
+        # fortify weak side, right side first
+        if fort_right:
+            for p in corner_right:
+                if game_state.game_map[p]:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resources(CORES, 0) > 6:
+                        game_state.attempt_remove(p)
+                game_state.attempt_spawn(DESTRUCTOR, p)
+
+        if fort_left:
+            for p in corner_left:
+                if game_state.game_map[p]:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resources(CORES, 0) > 6:
+                        game_state.attempt_remove(p)
+                game_state.attempt_spawn(DESTRUCTOR, p)
 
         encryptor_locations = [[21, 10], [22, 11],
                                [23, 12], [23, 11], [22, 10], [21, 9]]
         if (game_state.turn_number > 10):
             for p in encryptor_locations:
                 if game_state.game_map[p]:
-                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(BITS, 0) > 4:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(CORES, 0) > 4:
                         game_state.attempt_remove(p)
-                        game_state.attempt_spawn(ENCRYPTOR, p)
-
-    def build_reactive_defense(self, game_state):
-        """
-        This function builds reactive defenses based on where the enemy scored on us from.
-        We can track where the opponent scored by looking at events in action frames
-        as shown in the on_action_frame function
-        """
-        for location in self.scored_on_locations:
-            # Build destructor one space above so that it doesn't block our own edge spawn locations
-            build_location = [location[0], location[1]+1]
-            game_state.attempt_spawn(DESTRUCTOR, build_location)
+                game_state.attempt_spawn(ENCRYPTOR, p)
 
     def repair_defense(self, game_state):
         game_map = game_state.game_map
