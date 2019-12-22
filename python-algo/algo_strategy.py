@@ -10,12 +10,12 @@ import json
 Most of the algo code you write will be in this file unless you create new
 modules yourself. Start by modifying the 'on_turn' function.
 
-Advanced strategy tips: 
+Advanced strategy tips:
 
   - You can analyze action frames by modifying on_action_frame function
 
-  - The GameState.map object can be manually manipulated to create hypothetical 
-  board states. Though, we recommended making a copy of the map to preserve 
+  - The GameState.map object can be manually manipulated to create hypothetical
+  board states. Though, we recommended making a copy of the map to preserve
   the actual current map state.
 """
 
@@ -28,8 +28,8 @@ class AlgoStrategy(gamelib.AlgoCore):
         gamelib.debug_write('Random seed: {}'.format(seed))
 
     def on_game_start(self, config):
-        """ 
-        Read in config and perform any initial setup here 
+        """
+        Read in config and perform any initial setup here
         """
         gamelib.debug_write('Configuring your custom algo strategy...')
         self.config = config
@@ -44,6 +44,8 @@ class AlgoStrategy(gamelib.AlgoCore):
         CORES = 1
         # This is a good place to do initial setup
         self.scored_on_locations = []
+        # PING, EMP, SCRAMBLER
+        self.scored_type = [0, 0, 0]
 
     def on_turn(self, turn_state):
         """
@@ -77,18 +79,25 @@ class AlgoStrategy(gamelib.AlgoCore):
         """
         # First, place basic defenses
         self.build_defences(game_state)
-        # Now build reactive defenses based on where the enemy scored
-        self.build_reactive_defense(game_state)
-
-        # Only spawn Ping's every other turn
-        # Sending more at once is better since attacks can only hit a single ping at a time
-        if game_state.turn_number % 2 == 1:
-                # To simplify we will just check sending them from back left and right
-            game_state.attempt_spawn(PING, [13, 0], 1000)
-
-            # Lastly, if we have spare cores, let's build some Encryptors to boost our Pings' health.
-        # encryptor_locations = [[19, 9], [20, 9], [21, 9], [22, 9]]
-        # game_state.attempt_spawn(ENCRYPTOR, encryptor_locations)
+        # repair defenses
+        self.repair_defense(game_state)
+        if game_state.get_resource(BITS, 0) > 15+min(round/10, 5):
+            # check if they have lots of destructors
+            # if they do, send EMPs
+            # if not, send pings
+            num_dest = 0
+            threat_loc = [[27, 14], [26, 14], [25, 14], [24, 14], [23, 14], [26, 15], [25, 15], [24, 15], [25, 16]]
+            for p in threat_loc:
+                if game_state.game_map[p]:
+                    if game_state.game_map[p][0].unit_type == DESTRUCTOR:
+                        num_dest += 1
+                    else
+                        num_dest += 0.5
+            if num_dest > 3.5:
+                game_state.attempt_spwan(EMP, [21, 7], 6)
+            else:
+                game_state.attempt_spawn(PING, [5, 8], 3)
+                game_state.attempt_spawn(PING, [4, 9], 100)
 
     def build_defences(self, game_state):
         """
@@ -102,27 +111,51 @@ class AlgoStrategy(gamelib.AlgoCore):
         destructor_locations = [[3, 12], [24, 12], [13, 9]]
         # attempt_spawn will try to spawn units if we have resources, and will check if a blocking unit is already there
         game_state.attempt_spawn(DESTRUCTOR, destructor_locations)
-
-        # Place filters in front of destructors to soak up damage for them
-        filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11], [23, 12],
-                            [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [
+        if (game_state.turn_number <= 10):
+            # Place filters in front of destructors to soak up damage for them
+            filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11], [23, 12],
+                                [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [
                                 5, 10], [22, 10], [6, 9], [21, 9], [7, 10], [20, 10],
-                            [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
-        game_state.attempt_spawn(FILTER, filter_locations)
-
-        destructor_locations = [[8, 9], [19, 9]]
+                                [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
+            game_state.attempt_spawn(FILTER, filter_locations)
+        else:
+            filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11],
+                                [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [6, 9], [7, 10], [20, 10], [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
+            game_state.attempt_spawn(FILTER, filter_locations)
+        destructor_locations = [[8, 9], [19, 9], [
+            2, 12], [1, 12], [2, 11], [4, 10], [3, 11]]
         game_state.attempt_spawn(DESTRUCTOR, destructor_locations)
+
+        encryptor_locations = [[21, 10], [22, 11],
+                               [23, 12], [23, 11], [22, 10], [21, 9]]
+        if (game_state.turn_number > 10):
+            for p in encryptor_locations:
+                if game_state.game_map[p]:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(BITS, 0) > 4:
+                        game_state.attempt_remove(p)
+                        game_state.attempt_spawn(ENCRYPTOR, p)
 
     def build_reactive_defense(self, game_state):
         """
         This function builds reactive defenses based on where the enemy scored on us from.
-        We can track where the opponent scored by looking at events in action frames 
+        We can track where the opponent scored by looking at events in action frames
         as shown in the on_action_frame function
         """
         for location in self.scored_on_locations:
             # Build destructor one space above so that it doesn't block our own edge spawn locations
             build_location = [location[0], location[1]+1]
             game_state.attempt_spawn(DESTRUCTOR, build_location)
+
+    def repair_defense(self, game_state):
+        game_map = game_state.game_map
+        my_positions = [[x, y] for x in range(game_map.ARENA_SIZE) for y in range(game_map.HALF_ARENA) if game_map.in_arena_bounds([
+            x, y])]
+        for p in my_positions:
+            if game_map[p]:
+                unit = game_map[p][0]
+                if (game_state.get_resource(BITS, 1) < 8):
+                    if (unit.health < 30 and not unit.unit_type == ENCRYPTOR):
+                        game_state.attempt_remove(p)
 
     def stall_with_scramblers(self, game_state):
         """
@@ -139,7 +172,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         game_state.attempt_spawn(SCRAMBLER, [9, 4])
         game_state.attempt_spawn(SCRAMBLER, [18, 4])
         """
-            We don't have to remove the location since multiple information 
+            We don't have to remove the location since multiple information
             units can occupy the same space.
             """
 
@@ -168,7 +201,7 @@ class AlgoStrategy(gamelib.AlgoCore):
     def least_damage_spawn_location(self, game_state, location_options):
         """
         This function will help us guess which location is the safest to spawn moving units from.
-        It gets the path the unit will take then checks locations on that path to 
+        It gets the path the unit will take then checks locations on that path to
         estimate the path's damage risk.
         """
         damages = []
@@ -203,7 +236,7 @@ class AlgoStrategy(gamelib.AlgoCore):
 
     def on_action_frame(self, turn_string):
         """
-        This is the action frame of the game. This function could be called 
+        This is the action frame of the game. This function could be called
         hundreds of times per turn and could slow the algo down so avoid putting slow code here.
         Processing the action frames is complicated so we only suggest it if you have time and experience.
         Full doc on format of a game frame at: https://docs.c1games.com/json-docs.html
@@ -214,12 +247,19 @@ class AlgoStrategy(gamelib.AlgoCore):
         breaches = events["breach"]
         for breach in breaches:
             location = breach[0]
+            u_type = breach[2]
             unit_owner_self = True if breach[4] == 1 else False
             # When parsing the frame data directly,
             # 1 is integer for yourself, 2 is opponent (StarterKit code uses 0, 1 as player_index instead)
             if not unit_owner_self:
                 gamelib.debug_write("Got scored on at: {}".format(location))
                 self.scored_on_locations.append(location)
+                if u_type == PING:
+                    self.scored_type[0] += 1
+                elif u_type == EMP:
+                    self.scored_type[1] += 1
+                else:
+                    self.scored_type[2] += 2
                 gamelib.debug_write(
                     "All locations: {}".format(self.scored_on_locations))
 
