@@ -80,8 +80,8 @@ class AlgoStrategy(gamelib.AlgoCore):
         # Now build reactive defenses based on where the enemy scored
         self.build_reactive_defense(game_state)
 
-            # Only spawn Ping's every other turn
-            # Sending more at once is better since attacks can only hit a single ping at a time
+        # Only spawn Ping's every other turn
+        # Sending more at once is better since attacks can only hit a single ping at a time
         if game_state.turn_number % 2 == 1:
                 # To simplify we will just check sending them from back left and right
             game_state.attempt_spawn(PING, [13, 0], 1000)
@@ -105,8 +105,9 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         # Place filters in front of destructors to soak up damage for them
         filter_locations = [[0, 13], [1, 13], [2, 13], [3, 13], [27, 13], [25, 13], [24, 13], [4, 12], [4, 11], [23, 12],
-        [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [22, 10], [6, 9], [21, 9], [7, 10], [20, 10], 
-        [8, 10], [19, 10], [10, 10], [18, 10], [11, 10], [17, 10], [15, 10], [16, 10]]
+                            [23, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [
+                                5, 10], [22, 10], [6, 9], [21, 9], [7, 10], [20, 10],
+                            [8, 10], [19, 10], [9, 10], [18, 10], [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
         game_state.attempt_spawn(FILTER, filter_locations)
 
         destructor_locations = [[8, 9], [19, 9]]
