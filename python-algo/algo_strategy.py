@@ -83,8 +83,10 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.repair_defense(game_state)
 
         # send out scramblers if they're sending ton of EMPs
-        if self.scored_type[1] > 4:
-            game_state.attempt_spawn(SCRAMBLER, [18, 4], 1)
+        if game_state.get_resource(BITS, 1) > 20:
+            game_state.attempt_spawn(SCRAMBLER, [21, 7], 2)
+        elif game_state.get_resource(BITS, 1) > 10:
+            game_state.attempt_spawn(SCRAMBLER, [21, 7], 1)
 
         if game_state.get_resource(BITS, 0) > 13+min(game_state.turn_number/10, 5):
             # check if they have lots of destructors
@@ -99,7 +101,7 @@ class AlgoStrategy(gamelib.AlgoCore):
                         num_dest += 1
                     else:
                         num_dest += 0.5
-            if num_dest > 3.5:
+            if num_dest > 2.5:
                 game_state.attempt_spawn(EMP, [21, 7], 6)
             else:
                 game_state.attempt_spawn(PING, [5, 8], 3)
@@ -132,15 +134,14 @@ class AlgoStrategy(gamelib.AlgoCore):
             # check for left or right breach
             left = 0
             right = 0
-            if self.scored_type[0] > 6:
-                for p in self.scored_on_locations:
-                    if p in game_state.game_map.get_edge_locations(game_state.game_map.BOTTOM_LEFT):
-                        left += 1
-                    else:
-                        right += 1
-            if left > 6:
+            for p in self.scored_on_locations:
+                if p in game_state.game_map.get_edge_locations(game_state.game_map.BOTTOM_LEFT):
+                    left += 1
+                else:
+                    right += 1
+            if left > 5:
                 fort_left = True
-            if right > 6:
+            if right > 5:
                 fort_right = True
             filter_locations = [[4, 12], [4, 11], [12, 10], [13, 10], [14, 10], [12, 9], [14, 9], [5, 10], [6, 9], [7, 10], [20, 10], [8, 10], [19, 10], [9, 10], [18, 10],
                                 [10, 10], [17, 10], [11, 10], [16, 10], [15, 10]]
@@ -149,22 +150,28 @@ class AlgoStrategy(gamelib.AlgoCore):
             if not fort_left:
                 filter_locations = filter_locations + corner_left
             game_state.attempt_spawn(FILTER, filter_locations)
-        destructor_locations = [[8, 9], [19, 9], [
-            2, 12], [1, 12], [2, 11], [4, 10], [3, 11]]
+        destructor_locations = [[8, 9], [19, 9]]
         game_state.attempt_spawn(DESTRUCTOR, destructor_locations)
 
+        dest_left = [[2, 12], [1, 12], [2, 11],
+                     [4, 10], [3, 11], [7, 9], [4, 10]]
         # fortify weak side, right side first
         if fort_right:
             for p in corner_right:
                 if game_state.game_map[p]:
-                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resources(CORES, 0) > 6:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(CORES, 0) > 6:
                         game_state.attempt_remove(p)
                 game_state.attempt_spawn(DESTRUCTOR, p)
 
         if fort_left:
             for p in corner_left:
                 if game_state.game_map[p]:
-                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resources(CORES, 0) > 6:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(CORES, 0) > 6:
+                        game_state.attempt_remove(p)
+                game_state.attempt_spawn(DESTRUCTOR, p)
+            for p in dest_left:
+                if game_state.game_map[p]:
+                    if game_state.game_map[p][0].unit_type == FILTER and game_state.get_resource(CORES, 0) > 6:
                         game_state.attempt_remove(p)
                 game_state.attempt_spawn(DESTRUCTOR, p)
 
@@ -287,10 +294,13 @@ class AlgoStrategy(gamelib.AlgoCore):
                 self.scored_on_locations.append(location)
                 if u_type == PING:
                     self.scored_type[0] += 1
+                    gamelib.debug_write("A ping scored")
                 elif u_type == EMP:
                     self.scored_type[1] += 1
+                    gamelib.debug_write("An EMP scored")
                 else:
                     self.scored_type[2] += 2
+                    gamelib.debug_write("A scrambler scored")
                 gamelib.debug_write(
                     "All locations: {}".format(self.scored_on_locations))
 
